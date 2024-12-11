@@ -1,8 +1,8 @@
 {
-  "name": "electron-mqtt-monitor",
+  "name": "mqtt-inspector",
   "version": "1.0.0",
-  "description": "MQTT Monitor Desktop Application",
-  "main": "main.js",
+  "description": "Real-time MQTT Message Inspector and Monitoring Tool",
+  "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder build --win --mac --linux",
@@ -11,11 +11,17 @@
     "build:linux": "electron-builder build --linux"
   },
   "build": {
-    "appId": "com.mqttmonitor.app",
-    "productName": "MQTT Monitor",
+    "appId": "com.mqttinspector.app",
+    "productName": "MQTT Inspector",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "assets"
     },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
     "win": {
       "target": [
         {
@@ -49,7 +55,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "MQTT Monitor",
+      "shortcutName": "MQTT Inspector",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico"
     }
@@ -58,7 +64,17 @@
     "mqtt": "^4.3.7"
   },
   "devDependencies": {
-    "electron": "^28.1.0",
-    "electron-builder": "^24.13.3"
-  }
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1"
+  },
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ysfsmet/mqtt-inspector.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ysfsmet/mqtt-inspector/issues"
+  },
+  "homepage": "https://github.com/ysfsmet/mqtt-inspector#readme"
 }
