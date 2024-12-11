@@ -1,0 +1,16 @@
+{
+  "name": "electron-mqtt-monitor",
+  "version": "1.0.0",
+  "description": "MQTT Monitor Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "mqtt": "^4.3.7"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0"
+  }
+}

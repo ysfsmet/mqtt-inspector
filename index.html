@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>MQTT Monitör</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .connection-form {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .form-row .form-group {
+            flex: 1;
+        }
+        .connect-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .connect-btn:hover {
+            background: #2980b9;
+        }
+        .connect-btn.disconnecting {
+            background: #e74c3c;
+        }
+        .machine-group {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .machine-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #eee;
+        }
+        .variable-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .message-count {
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 14px;
+        }
+        .variable-name {
+            flex: 1;
+            color: #34495e;
+        }
+        .variable-value {
+            color: #16a085;
+            font-weight: bold;
+            margin-left: 15px;
+        }
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected {
+            background: #2ecc71;
+            color: white;
+        }
+        .disconnected {
+            background: #e74c3c;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MQTT Monitör</h1>
+        <div id="connectionStatus" class="connection-status disconnected">Bağlantı Kesik</div>
+
+        <div class="connection-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="protocol">Protokol</label>
+                    <select id="protocol">
+                        <option value="mqtt">MQTT (1883)</option>
+                        <option value="ws">WebSocket (9001)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="host">Broker Adresi</label>
+                    <input type="text" id="host" value="localhost">
+                </div>
+                <div class="form-group">
+                    <label for="port">Port</label>
+                    <input type="number" id="port" value="1883">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="username">Kullanıcı Adı (Opsiyonel)</label>
+                    <input type="text" id="username">
+                </div>
+                <div class="form-group">
+                    <label for="password">Şifre (Opsiyonel)</label>
+                    <input type="password" id="password">
+                </div>
+            </div>
+            <button id="connectBtn" class="connect-btn">Bağlan</button>
+        </div>
+
+        <div id="machineGroups"></div>
+    </div>
+
+    <script>
+        const mqtt = require('mqtt');
+        let client = null;
+        const machineData = {};
+        const messageCounters = {};
+        
+        // Form elemanları
+        const protocolSelect = document.getElementById('protocol');
+        const hostInput = document.getElementById('host');
+        const portInput = document.getElementById('port');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const connectBtn = document.getElementById('connectBtn');
+
+        // Protokol değiştiğinde port numarasını otomatik güncelle
+        protocolSelect.addEventListener('change', function() {
+            portInput.value = this.value === 'mqtt' ? '1883' : '9001';
+        });
+
+        // Bağlantı durumunu güncelleme
+        function updateConnectionStatus(isConnected) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.className = `connection-status ${isConnected ? 'connected' : 'disconnected'}`;
+            statusEl.textContent = isConnected ? 'Bağlı' : 'Bağlantı Kesik';
+            
+            connectBtn.textContent = isConnected ? 'Bağlantıyı Kes' : 'Bağlan';
+            connectBtn.className = `connect-btn ${isConnected ? 'disconnecting' : ''}`;
+        }
+
+        // MQTT bağlantısını yönetme
+        function handleConnection() {
+            if (client && client.connected) {
+                client.end();
+                return;
+            }
+
+            const protocol = protocolSelect.value;
+            const host = hostInput.value;
+            const port = parseInt(portInput.value);
+            const username = usernameInput.value;
+            const password = passwordInput.value;
+
+            // Bağlantı URL'ini oluştur
+            const url = `${protocol}://${host}:${port}`;
+
+            // Bağlantı seçenekleri
+            const options = {
+                clean: true,
+                connectTimeout: 4000,
+                clientId: 'monitor_' + Math.random().toString(16).substr(2, 8)
+            };
+
+            if (username) {
+                options.username = username;
+                options.password = password;
+            }
+
+            // Mevcut verileri temizle
+            Object.keys(machineData).forEach(key => delete machineData[key]);
+            Object.keys(messageCounters).forEach(key => delete messageCounters[key]);
+            updateUI();
+
+            try {
+                // Yeni bağlantı oluştur
+                client = mqtt.connect(url, options);
+
+                client.on('connect', function() {
+                    console.log('Bağlantı başarılı');
+                    updateConnectionStatus(true);
+                    client.subscribe('sysmanager/#');
+                });
+
+                client.on('message', function(topic, message) {
+                    const parts = topic.split('/');
+                    if (parts.length === 3 && parts[0] === 'sysmanager') {
+                        const machineName = parts[1];
+                        const variableName = parts[2];
+                        const value = message.toString();
+
+                        if (!machineData[machineName]) {
+                            machineData[machineName] = {};
+                        }
+                        machineData[machineName][variableName] = value;
+
+                        const counterKey = `${machineName}/${variableName}`;
+                        messageCounters[counterKey] = (messageCounters[counterKey] || 0) + 1;
+
+                        updateUI();
+                    }
+                });
+
+                client.on('error', function(err) {
+                    console.error('Bağlantı hatası:', err);
+                    updateConnectionStatus(false);
+                });
+
+                client.on('close', function() {
+                    console.log('Bağlantı kapandı');
+                    updateConnectionStatus(false);
+                });
+
+            } catch (error) {
+                console.error("Bağlantı hatası:", error);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // Bağlantı butonuna tıklama olayı
+        connectBtn.addEventListener('click', handleConnection);
+
+        function updateUI() {
+            const container = document.getElementById('machineGroups');
+            container.innerHTML = '';
+
+            Object.keys(machineData).sort().forEach(machineName => {
+                const machineGroup = document.createElement('div');
+                machineGroup.className = 'machine-group';
+
+                const machineTitle = document.createElement('div');
+                machineTitle.className = 'machine-title';
+                machineTitle.textContent = `Makine: ${machineName}`;
+                machineGroup.appendChild(machineTitle);
+
+                Object.keys(machineData[machineName]).sort().forEach(variableName => {
+                    const variableItem = document.createElement('div');
+                    variableItem.className = 'variable-item';
+
+                    const counterKey = `${machineName}/${variableName}`;
+                    const messageCount = messageCounters[counterKey] || 0;
+
+                    variableItem.innerHTML = `
+                        <div class="message-count">${messageCount}</div>
+                        <div class="variable-name">${variableName}</div>
+                        <div class="variable-value">${machineData[machineName][variableName]}</div>
+                    `;
+
+                    machineGroup.appendChild(variableItem);
+                });
+
+                container.appendChild(machineGroup);
+            });
+        }
+    </script>
+</body>
+</html>
